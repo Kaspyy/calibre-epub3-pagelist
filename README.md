@@ -1,6 +1,6 @@
 # EPUB3 Page List Generator (Calibre Plugin)
 
-[![Unit Tests](https://github.com/kacperpawlak/calibre-epub3-pagelist/actions/workflows/test.yml/badge.svg)](https://github.com/kacperpawlak/calibre-epub3-pagelist/actions/workflows/test.yml)
+[![Unit Tests](https://github.com/kacperpawlak/calibre-epub3-pagelist/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/kacperpawlak/calibre-epub3-pagelist/actions/workflows/test.yml)
 [![Calibre](https://img.shields.io/badge/Calibre-6.0%2B-blue.svg)](https://calibre-ebook.com/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-brightgreen.svg)](https://www.python.org/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
