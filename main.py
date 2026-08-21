@@ -2,7 +2,7 @@ import os
 import traceback
 
 from calibre.gui2.actions import InterfaceAction
-from calibre.gui2 import error_dialog, info_dialog, warning_dialog
+from calibre.gui2 import error_dialog, info_dialog
 from calibre.ebooks.oeb.polish.container import get_container
 from calibre_plugins.epub3_pagelist.utils import get_icons
 

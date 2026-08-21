@@ -1,4 +1,4 @@
-from qt.core import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, QCheckBox, QGroupBox
+from qt.core import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, QCheckBox
 from calibre.utils.config import JSONConfig
 
 # Persistent config storage for the plugin

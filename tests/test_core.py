@@ -7,8 +7,7 @@ allowing testing without a full Calibre installation.
 import os
 import sys
 import unittest
-from dataclasses import dataclass, field
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 from lxml import etree
 
 # Add parent directory to path for imports

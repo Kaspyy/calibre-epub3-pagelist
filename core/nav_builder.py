@@ -6,8 +6,6 @@ XHTML_NS = "http://www.w3.org/1999/xhtml"
 EPUB_OPS_NS = "http://www.idpf.org/2007/ops"
 OPF_NS = "http://www.idpf.org/2007/opf"
 NCX_NS = "http://www.daisy.org/z3986/2005/ncx/"
-DC_NS = "http://purl.org/dc/elements/1.1/"
-SCHEMA_NS = "http://schema.org/"
 
 NSMAP = {
     None: XHTML_NS,
