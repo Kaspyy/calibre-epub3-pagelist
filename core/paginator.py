@@ -42,8 +42,8 @@ class PageBreak:
 
 @dataclass
 class PaginationConfig:
-    """Configuration for the pagination engine based on KFX Output algorithm."""
-    chars_per_page: int = 1850  # KFX Output standard TYPICAL_POSITIONS_PER_PAGE
+    """Configuration for the pagination engine."""
+    chars_per_page: int = 1850  # Kindle-standard ~1850 characters per page
     snap_to_paragraph: bool = True
     snap_threshold: int = 200
     skip_elements: frozenset = field(
@@ -54,7 +54,7 @@ class PaginationConfig:
 class Paginator:
     """
     Calculates synthetic page break positions across EPUB spine documents
-    reproducing Calibre KFX Output plugin's pagination algorithm:
+    using Kindle-standard character-count pagination:
     - Each section/spine document (e.g. Cover, TOC, Chapter) starts on a new page.
     - Long sections are partitioned into additional pages every chars_per_page characters.
     """
@@ -107,7 +107,7 @@ class Paginator:
         return page_breaks
 
     # ------------------------------------------------------------------
-    # Document processing (KFX Output algorithm)
+    # Document processing
     # ------------------------------------------------------------------
 
     def _process_document(
@@ -119,7 +119,7 @@ class Paginator:
         """
         Process a single XHTML spine document to find page break positions.
 
-        In accordance with the KFX Output algorithm:
+        Algorithm:
         1. The section begins on a new page (start_page).
         2. Any additional content beyond chars_per_page generates subsequent page breaks.
 

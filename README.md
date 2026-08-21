@@ -13,7 +13,7 @@ A Calibre plugin that automatically generates and injects synthetic page-list na
 
 Many modern e-readers and reading apps (including **Amazon Kindle** via *Send to Kindle*, **Kobo**, **Apple Books**, and **Adobe Digital Editions**) support real-feeling page numbers through standard page-list navigation structures. Without them, readers are often left with abstract "locations" or percentages.
 
-**EPUB3 Page List Generator** scans EPUB 3 ebooks, calculates synthetic page break positions using the proven **KFX character-count algorithm** (~1,850 characters per page), and injects universal multi-format page navigation without altering the book's visual rendering or formatting.
+**EPUB3 Page List Generator** scans EPUB 3 ebooks, calculates synthetic page break positions using **Kindle-standard character-count pagination** (~1,850 characters per page), and injects universal multi-format page navigation without altering the book's visual rendering or formatting.
 
 ---
 
@@ -74,7 +74,7 @@ You can customize plugin behavior via **Preferences** → **Plugins** → **EPUB
 
 | Setting | Default | Description |
 |---|---|---|
-| **Characters per page** | `1850` | Target character count per page (based on standard KFX pagination). |
+| **Characters per page** | `1850` | Target character count per page (based on standard Kindle pagination). |
 | **Snap to paragraph boundaries** | `True` | Snaps page breaks to nearby paragraph tags (`<p>`, `<div>`, etc.) for cleaner breaks. |
 | **Overwrite existing page-list** | `True` | If enabled, replaces any existing page-list markers. If disabled, already-paginated books will be skipped. |
 
