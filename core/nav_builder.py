@@ -1,0 +1,382 @@
+from lxml import etree
+import os
+import uuid
+
+XHTML_NS = "http://www.w3.org/1999/xhtml"
+EPUB_OPS_NS = "http://www.idpf.org/2007/ops"
+OPF_NS = "http://www.idpf.org/2007/opf"
+NCX_NS = "http://www.daisy.org/z3986/2005/ncx/"
+DC_NS = "http://purl.org/dc/elements/1.1/"
+SCHEMA_NS = "http://schema.org/"
+
+NSMAP = {
+    None: XHTML_NS,
+    'epub': EPUB_OPS_NS
+}
+
+
+class NavBuilder:
+    """
+    Builds universal page-list structures across EPUB formats:
+    1. EPUB3 Navigation Document (<nav epub:type="page-list">)
+    2. EPUB2 NCX Navigation Document (<pageList>) for Kindle / legacy compatibility
+    3. Adobe Digital Editions page-map.xml
+    4. OPF Accessibility & pageBreakSource metadata
+    """
+
+    def __init__(self, container):
+        """
+        :param container: Calibre Polish Container
+        """
+        self.container = container
+
+    def has_existing_page_list(self) -> bool:
+        """
+        Check if the EPUB already contains a page-list in nav.xhtml, toc.ncx, or page-map.xml.
+        """
+        # Check nav.xhtml
+        nav_name = self._find_nav_document()
+        if nav_name:
+            try:
+                nav_tree = self.container.parsed(nav_name)
+                ns = {'epub': EPUB_OPS_NS, 'xhtml': XHTML_NS}
+                if nav_tree.xpath('//xhtml:nav[@epub:type="page-list"]', namespaces=ns):
+                    return True
+            except Exception:
+                pass
+
+        # Check toc.ncx
+        try:
+            ncx_items = self.container.opf_xpath('//opf:item[@media-type="application/x-dtbncx+xml"]')
+            if ncx_items:
+                ncx_href = ncx_items[0].get('href')
+                ncx_name = self.container.href_to_name(ncx_href, base=self.container.opf_name)
+                if self.container.has_name(ncx_name):
+                    ncx_tree = self.container.parsed(ncx_name)
+                    ns = {'ncx': NCX_NS}
+                    if ncx_tree.xpath('//ncx:pageList', namespaces=ns):
+                        return True
+        except Exception:
+            pass
+
+        # Check page-map.xml
+        try:
+            pm_items = self.container.opf_xpath('//opf:item[@media-type="application/oebps-page-map+xml"]')
+            if pm_items:
+                return True
+        except Exception:
+            pass
+
+        return False
+
+    def build_page_list(self, page_breaks: list, overwrite: bool = False) -> None:
+        """
+        Main method that builds page-list in nav.xhtml, toc.ncx, and page-map.xml.
+
+        :param page_breaks: List of PageBreak objects.
+        :param overwrite: If True, overwrite existing page-list structures.
+        """
+        if not page_breaks:
+            return
+
+        # 1. EPUB 3 Navigation Document (nav.xhtml)
+        self._build_nav_page_list(page_breaks, overwrite=overwrite)
+
+        # 2. EPUB 2 NCX Navigation Document (toc.ncx) - for Kindle conversion
+        self._build_ncx_page_list(page_breaks, overwrite=overwrite)
+
+        # 3. Adobe page-map.xml - for ADE & older Kindle engines
+        self._build_adobe_page_map(page_breaks, overwrite=overwrite)
+
+        # 4. OPF Metadata
+        self._update_opf_metadata()
+
+    # ------------------------------------------------------------------
+    # 1. EPUB 3 nav.xhtml page-list
+    # ------------------------------------------------------------------
+
+    def _build_nav_page_list(self, page_breaks: list, overwrite: bool) -> None:
+        nav_name = self._find_nav_document()
+        if not nav_name:
+            nav_name = self._create_nav_document()
+
+        nav_tree = self.container.parsed(nav_name)
+
+        ns = {'epub': EPUB_OPS_NS, 'xhtml': XHTML_NS}
+        existing = nav_tree.xpath('//xhtml:nav[@epub:type="page-list"]', namespaces=ns)
+        if existing and not overwrite:
+            return
+
+        self._remove_existing_page_list(nav_tree)
+
+        page_list_element = self._build_page_list_element(page_breaks, nav_name)
+
+        body = nav_tree.find(f'.//{{{XHTML_NS}}}body')
+        if body is not None:
+            body.append(page_list_element)
+            self.container.dirty(nav_name)
+
+    def _find_nav_document(self) -> str | None:
+        if hasattr(self.container, 'manifest_items_with_property'):
+            nav_items = list(self.container.manifest_items_with_property('nav'))
+            if nav_items:
+                return nav_items[0]
+
+        items = self.container.opf_xpath('//opf:item[contains(@properties, "nav")]')
+        if items:
+            href = items[0].get('href')
+            return self.container.href_to_name(href, base=self.container.opf_name)
+        return None
+
+    def _create_nav_document(self) -> str:
+        opf_dir = os.path.dirname(self.container.opf_name)
+        nav_name = f"{opf_dir}/nav.xhtml" if opf_dir else "nav.xhtml"
+        if self.container.has_name(nav_name):
+            nav_name = f"{opf_dir}/nav_{uuid.uuid4().hex[:8]}.xhtml" if opf_dir else f"nav_{uuid.uuid4().hex[:8]}.xhtml"
+
+        content = f'''<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="{XHTML_NS}" xmlns:epub="{EPUB_OPS_NS}">
+<head>
+    <title>Navigation</title>
+</head>
+<body>
+    <nav epub:type="toc" id="toc">
+        <h1>Table of Contents</h1>
+        <ol></ol>
+    </nav>
+</body>
+</html>'''
+
+        try:
+            self.container.add_file(nav_name, content.encode('utf-8'), media_type='application/xhtml+xml')
+            if hasattr(self.container, 'add_properties'):
+                self.container.add_properties(nav_name, 'nav')
+        except Exception:
+            pass
+
+        return nav_name
+
+    def _remove_existing_page_list(self, nav_tree: etree.ElementTree) -> None:
+        ns = {'epub': EPUB_OPS_NS, 'xhtml': XHTML_NS}
+        page_lists = nav_tree.xpath('//xhtml:nav[@epub:type="page-list"]', namespaces=ns)
+        for pl in page_lists:
+            parent = pl.getparent()
+            if parent is not None:
+                parent.remove(pl)
+
+    def _build_page_list_element(self, page_breaks: list, nav_name: str) -> etree.Element:
+        nav = etree.Element(f'{{{XHTML_NS}}}nav', nsmap=NSMAP)
+        nav.set(f'{{{EPUB_OPS_NS}}}type', 'page-list')
+        nav.set('role', 'doc-pagelist')
+        nav.set('id', 'page-list')
+        nav.set('hidden', 'hidden')
+
+        h2 = etree.SubElement(nav, f'{{{XHTML_NS}}}h2')
+        h2.text = 'List of Pages'
+
+        ol = etree.SubElement(nav, f'{{{XHTML_NS}}}ol')
+
+        for pb in page_breaks:
+            li = etree.SubElement(ol, f'{{{XHTML_NS}}}li')
+            a = etree.SubElement(li, f'{{{XHTML_NS}}}a')
+
+            target_href = self.container.name_to_href(pb.spine_name, base=nav_name)
+            a.set('href', f"{target_href}#{pb.anchor_id}")
+            a.text = pb.page_label
+
+        return nav
+
+    # ------------------------------------------------------------------
+    # 2. EPUB 2 NCX toc.ncx pageList (Required for Kindle / Send to Kindle)
+    # ------------------------------------------------------------------
+
+    def _build_ncx_page_list(self, page_breaks: list, overwrite: bool) -> None:
+        try:
+            ncx_name = self._find_or_create_ncx()
+            if not ncx_name:
+                return
+
+            ncx_tree = self.container.parsed(ncx_name)
+            if ncx_tree is None:
+                return
+
+            ncx_root = ncx_tree.getroot() if hasattr(ncx_tree, 'getroot') else ncx_tree
+            if ncx_root is None:
+                return
+
+            # Remove existing pageList
+            for child in list(ncx_root):
+                tag = getattr(child, 'tag', '')
+                localname = tag.split('}', 1)[1] if isinstance(tag, str) and tag.startswith('{') else (tag or '')
+                if localname == 'pageList':
+                    if not overwrite:
+                        return
+                    ncx_root.remove(child)
+
+            # Build pageList element
+            page_list = etree.SubElement(ncx_root, f'{{{NCX_NS}}}pageList', id='pages')
+            nav_label = etree.SubElement(page_list, f'{{{NCX_NS}}}navLabel')
+            text_elem = etree.SubElement(nav_label, f'{{{NCX_NS}}}text')
+            text_elem.text = 'Pages'
+
+            for idx, pb in enumerate(page_breaks, start=1):
+                page_target = etree.SubElement(
+                    page_list,
+                    f'{{{NCX_NS}}}pageTarget',
+                    id=f'pt_{pb.anchor_id}',
+                    type='normal',
+                    value=str(pb.page_label),
+                    playOrder=str(idx),
+                )
+                pt_label = etree.SubElement(page_target, f'{{{NCX_NS}}}navLabel')
+                pt_text = etree.SubElement(pt_label, f'{{{NCX_NS}}}text')
+                pt_text.text = str(pb.page_label)
+
+                target_href = self.container.name_to_href(pb.spine_name, base=ncx_name)
+                etree.SubElement(
+                    page_target,
+                    f'{{{NCX_NS}}}content',
+                    src=f"{target_href}#{pb.anchor_id}",
+                )
+
+            self.container.dirty(ncx_name)
+        except Exception:
+            pass
+
+    def _find_or_create_ncx(self) -> str | None:
+        # Check if NCX exists in manifest
+        items = self.container.opf_xpath('//opf:item[@media-type="application/x-dtbncx+xml"]')
+        if items:
+            href = items[0].get('href')
+            ncx_name = self.container.href_to_name(href, base=self.container.opf_name)
+            if self.container.has_name(ncx_name):
+                return ncx_name
+
+        # Create new toc.ncx
+        opf_dir = os.path.dirname(self.container.opf_name)
+        ncx_name = f"{opf_dir}/toc.ncx" if opf_dir else "toc.ncx"
+
+        # Get book title & identifier
+        title_nodes = self.container.opf_xpath('//dc:title')
+        title = title_nodes[0].text if title_nodes and title_nodes[0].text else 'Document'
+
+        id_nodes = self.container.opf_xpath('//dc:identifier')
+        book_id = id_nodes[0].text if id_nodes and id_nodes[0].text else 'urn:uuid:' + uuid.uuid4().hex
+
+        content = f'''<?xml version="1.0" encoding="utf-8"?>
+<ncx xmlns="{NCX_NS}" version="2005-1">
+  <head>
+    <meta name="dtb:uid" content="{book_id}"/>
+    <meta name="dtb:depth" content="1"/>
+    <meta name="dtb:totalPageCount" content="0"/>
+    <meta name="dtb:maxPageNumber" content="0"/>
+  </head>
+  <docTitle><text>{title}</text></docTitle>
+  <navMap/>
+</ncx>'''
+
+        try:
+            self.container.add_file(ncx_name, content.encode('utf-8'), media_type='application/x-dtbncx+xml')
+        except Exception:
+            return None
+
+        # Ensure spine has toc attribute pointing to NCX
+        opf_tree = self.container.opf
+        spine = opf_tree.find(f'.//{{{OPF_NS}}}spine') if opf_tree is not None else None
+        if spine is not None:
+            ncx_item = self.container.opf_xpath(f'//opf:item[@href="{self.container.name_to_href(ncx_name, base=self.container.opf_name)}"]')
+            if ncx_item:
+                spine.set('toc', ncx_item[0].get('id'))
+                self.container.dirty(self.container.opf_name)
+
+        return ncx_name
+
+    # ------------------------------------------------------------------
+    # 3. Adobe page-map.xml (For ADE & Kindle engines)
+    # ------------------------------------------------------------------
+
+    def _build_adobe_page_map(self, page_breaks: list, overwrite: bool) -> None:
+        try:
+            opf_dir = os.path.dirname(self.container.opf_name)
+            page_map_name = f"{opf_dir}/page-map.xml" if opf_dir else "page-map.xml"
+
+            root = etree.Element(f'{{{OPF_NS}}}page-map', nsmap={None: OPF_NS})
+            for pb in page_breaks:
+                target_href = self.container.name_to_href(pb.spine_name, base=page_map_name)
+                etree.SubElement(
+                    root,
+                    f'{{{OPF_NS}}}page',
+                    name=str(pb.page_label),
+                    href=f"{target_href}#{pb.anchor_id}",
+                )
+
+            page_map_bytes = etree.tostring(root, encoding='utf-8', xml_declaration=True, pretty_print=True)
+
+            if hasattr(self.container, 'has_name') and self.container.has_name(page_map_name):
+                if not overwrite:
+                    return
+                if hasattr(self.container, 'set_raw_data'):
+                    self.container.set_raw_data(page_map_name, page_map_bytes)
+            elif hasattr(self.container, 'add_file'):
+                self.container.add_file(page_map_name, page_map_bytes, media_type='application/oebps-page-map+xml')
+
+            # Register in spine and package
+            opf_tree = self.container.opf
+            if opf_tree is not None:
+                pm_item = self.container.opf_xpath(f'//opf:item[@href="{self.container.name_to_href(page_map_name, base=self.container.opf_name)}"]')
+                pm_id = pm_item[0].get('id') if pm_item else 'page-map'
+
+                spine = opf_tree.find(f'.//{{{OPF_NS}}}spine')
+                if spine is not None:
+                    spine.set('page-map', pm_id)
+
+                opf_tree.set('page-map', pm_id)
+                self.container.dirty(self.container.opf_name)
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # 4. OPF Metadata & Accessibility
+    # ------------------------------------------------------------------
+
+    def _update_opf_metadata(self) -> None:
+        opf_tree = self.container.opf
+        if opf_tree is None:
+            return
+        metadata = opf_tree.find(f'.//{{{OPF_NS}}}metadata')
+        if metadata is None:
+            for elem in opf_tree.iter():
+                tag = getattr(elem, 'tag', None)
+                localname = tag.split('}', 1)[1] if isinstance(tag, str) and tag.startswith('{') else (tag or '')
+                if localname == 'metadata':
+                    metadata = elem
+                    break
+        if metadata is None:
+            return
+
+        # Accessibility features
+        features = ["pageBreakMarkers", "pageNavigation"]
+        for feature in features:
+            try:
+                existing = self.container.opf_xpath(
+                    f'//*[local-name()="meta"][@property="schema:accessibilityFeature" and text()="{feature}"]'
+                )
+            except Exception:
+                existing = []
+            if not existing:
+                meta = etree.SubElement(metadata, f'{{{OPF_NS}}}meta')
+                meta.set('property', 'schema:accessibilityFeature')
+                meta.text = feature
+
+        # pageBreakSource
+        try:
+            existing_pbs = self.container.opf_xpath('//*[local-name()="meta"][@property="pageBreakSource"]')
+        except Exception:
+            existing_pbs = []
+        if not existing_pbs:
+            meta = etree.SubElement(metadata, f'{{{OPF_NS}}}meta')
+            meta.set('property', 'pageBreakSource')
+            meta.text = 'none'
+
+        self.container.dirty(self.container.opf_name)
+
