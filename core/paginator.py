@@ -7,6 +7,9 @@ and optionally snapping to paragraph boundaries.
 from dataclasses import dataclass, field
 from lxml import etree
 
+# Translation table for fast whitespace removal
+_WS_REMOVER = str.maketrans('', '', ' \t\n\r\x0b\x0c')
+
 # XHTML namespace constant
 XHTML_NS = "http://www.w3.org/1999/xhtml"
 
@@ -169,8 +172,8 @@ class Paginator:
                 last_block_element = elem
                 chars_at_last_block = char_count
 
-            clean_text = text.split()
-            count = sum(len(w) for w in clean_text)
+            # Fast character counting without list allocations
+            count = len(text.translate(_WS_REMOVER))
             char_count += count
 
             if char_count >= self.config.chars_per_page:

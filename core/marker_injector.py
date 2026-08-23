@@ -92,12 +92,11 @@ class MarkerInjector:
         Insert *new_element* as the next sibling of *ref_element*
         under *parent*, preserving any tail text on *ref_element*.
         """
-        index = list(parent).index(ref_element)
         # Transfer tail text so it stays in the correct position
         if ref_element.tail:
             new_element.tail = ref_element.tail
             ref_element.tail = None
-        parent.insert(index + 1, new_element)
+        ref_element.addnext(new_element)
 
     def _insert_before_element(
         self,
@@ -108,8 +107,7 @@ class MarkerInjector:
         """
         Insert *new_element* immediately before *ref_element* under *parent*.
         """
-        index = list(parent).index(ref_element)
-        parent.insert(index, new_element)
+        ref_element.addprevious(new_element)
 
     def remove_existing_markers(self, spine_name: str | None = None) -> int:
         """
