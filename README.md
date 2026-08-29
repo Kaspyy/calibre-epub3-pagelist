@@ -9,7 +9,7 @@ A Calibre plugin that automatically generates and injects synthetic page-list na
 
 ---
 
-## 📖 Overview
+## Overview
 
 Many modern e-readers and reading apps (including **Amazon Kindle** via *Send to Kindle*, **Kobo**, **Apple Books**, and **Adobe Digital Editions**) support real-feeling page numbers through standard page-list navigation structures. Without them, readers are often left with abstract "locations" or percentages.
 
@@ -17,7 +17,7 @@ Many modern e-readers and reading apps (including **Amazon Kindle** via *Send to
 
 ---
 
-## ✨ Features
+## Features
 
 - **Universal Multi-Format Compatibility**:
   - **EPUB 3 Navigation Document**: Injects `<nav epub:type="page-list">` with `doc-pagebreak` milestones into `nav.xhtml`.
@@ -38,7 +38,7 @@ Many modern e-readers and reading apps (including **Amazon Kindle** via *Send to
 
 ---
 
-## 🚀 Installation
+## Installation
 
 ### Method 1: Using Calibre GUI (Recommended)
 
@@ -57,7 +57,7 @@ calibre-customize -a epub3_pagelist.zip
 
 ---
 
-## 💡 How to Use
+## How to Use
 
 1. Select one or more **EPUB 3** books in your Calibre library.
 2. Click the **Generate Page List** icon in the Calibre toolbar.
@@ -68,7 +68,7 @@ calibre-customize -a epub3_pagelist.zip
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 You can customize plugin behavior via **Preferences** → **Plugins** → **EPUB3 Page List Generator** → **Customize plugin**:
 
@@ -80,7 +80,7 @@ You can customize plugin behavior via **Preferences** → **Plugins** → **EPUB
 
 ---
 
-## 🛠️ Development & Building
+## Development & Building
 
 ### Requirements
 - Python 3.10+
@@ -114,7 +114,7 @@ python3 build.py --install
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the **GNU General Public License v3.0** (GPL-3.0) — see the [LICENSE](LICENSE) file for details.
 
